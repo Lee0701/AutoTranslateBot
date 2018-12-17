@@ -118,7 +118,7 @@ const sendResult = function(msg) {
   const preprocessed = queue[msg.message_id].filter(e => e.text !== msg.text)
       .sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
   for(i in preprocessed) {
-    if(i != 0) message += '\n⋯⋯⋯⋯⋯⋯⋯⋯⋯⋯\n'
+    if(i != 0) message += '\n'
     try {
       message += emojiFlags.countryCode(preprocessed[i].language.split('_')[1]).emoji + ' ' + preprocessed[i].text
     } catch(e) {
