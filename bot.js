@@ -116,7 +116,7 @@ const checkComplete = function(msg) {
 const sendResult = function(msg) {
   let message = ''
   const preprocessed = queue[msg.message_id].filter(e => e.text !== msg.text)
-      .sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
+      .sort((a, b) => a.language < b.language ? -1 : a.language > b.language ? 1 : 0)
   for(i in preprocessed) {
     if(i != 0) message += '\n'
     try {
