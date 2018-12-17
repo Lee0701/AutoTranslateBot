@@ -58,6 +58,7 @@ const save = function() {
 
 bot.on('message', (msg) => {
   if(!msg.text) return
+  if(msg.text.startsWith('^')) return
   if(msg.text.startsWith('/')) return
   if(groups[msg.chat.id]) {
     groups[msg.chat.id].forEach(language => {
@@ -109,6 +110,14 @@ const onTrCommand = function(msg, match) {
           result += '\n- ' + language.language + ' - ' + language.mode
         })
         reply(msg, result)
+      } else if(args[0] === 'reset') {
+        if(groups[chatId]) {
+          delete groups[chatId]
+          save()
+          reply(msg, 'Settings reset.')
+        } else {
+        reply(msg, 'Error!' + language)
+        }
       }
     } else {
       reply(msg, 'Usage: ')
@@ -126,7 +135,7 @@ const sendResult = function(msg) {
       .sort((a, b) => a.language < b.language ? -1 : a.language > b.language ? 1 : 0)
   for(i in preprocessed) {
     if(preprocessed[i].text === undefined) continue
-    if(i != 0) message += '\n'
+    if(i != 0) message += ' '
     try {
       message += emojiFlags.countryCode(preprocessed[i].language.split('_')[1]).emoji
       message += ' ' + preprocessed[i].text
