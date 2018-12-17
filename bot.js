@@ -130,7 +130,10 @@ const checkComplete = function(msg) {
 }
 
 const sendResult = function(msg) {
-  let message = ''
+  let message = msg.from.first_name
+  if(msg.from.last_name) message += ' ' + msg.from.last_name
+  //if(msg.from.username) message += ' @' + msg.from.username
+  message += ': '
   const preprocessed = queue[msg.message_id].filter(e => e.text !== msg.text)
       .sort((a, b) => a.language < b.language ? -1 : a.language > b.language ? 1 : 0)
   for(i in preprocessed) {
@@ -143,7 +146,7 @@ const sendResult = function(msg) {
       message += preprocessed[i].language + ' ' + filtered[i].text
     }
   }
-  if(message !== '') reply(msg, message)
+  if(message !== '') bot.sendMessage(msg.chat.id, message)
 }
 
 const reply = function(msg, text) {
