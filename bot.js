@@ -18,7 +18,8 @@ const client = new Client({
 })
 client.connect()
 
-const translate = require('./translate.js')
+const translate = require('./google-translator.js')
+const papago = require('./papago-translator.js')
 
 const trCommand = new RegExp('^/(atr)(@' + botId + ')?(?: ([\\s\\S]*))?')
 
@@ -56,7 +57,7 @@ bot.on('message', (msg) => {
   if(groups[msg.chat.id]) {
     groups[msg.chat.id].forEach(language => {
       queue[msg.message_id] = []
-      translate(msg.text, language, result => {
+      papago(msg.text, language, result => {
         queue[msg.message_id].push({language: language, text: result})
         if(checkComplete(msg)) {
           sendResult(msg)

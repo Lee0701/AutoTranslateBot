@@ -12,6 +12,7 @@
     "emoji-flags": "^1.2.0",
     "google-translate-api": "^2.3.0",
     "node-telegram-bot-api": "^0.30.0",
-    "pg": "^7.7.1"
+    "pg": "^7.7.1",
+    "request": "^2.88.0"
   }
 }
