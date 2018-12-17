@@ -1,0 +1,17 @@
+{
+  "name": "auto-translate-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "author": "Lee0701",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "emoji-flags": "^1.2.0",
+    "google-translate-api": "^2.3.0",
+    "node-telegram-bot-api": "^0.30.0",
+    "pg": "^7.7.1"
+  }
+}
