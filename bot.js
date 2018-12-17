@@ -18,8 +18,13 @@ const client = new Client({
 })
 client.connect()
 
-const translate = require('./google-translator.js')
+const google = require('./google-translator.js')
 const papago = require('./papago-translator.js')
+
+const modes = {
+  "google": google,
+  "papago": papago,
+}
 
 const trCommand = new RegExp('^/(atr)(@' + botId + ')?(?: ([\\s\\S]*))?')
 
@@ -57,8 +62,8 @@ bot.on('message', (msg) => {
   if(groups[msg.chat.id]) {
     groups[msg.chat.id].forEach(language => {
       queue[msg.message_id] = []
-      papago(msg.text, language, result => {
-        queue[msg.message_id].push({language: language, text: result})
+      modes[language.mode](msg.text, language.language, result => {
+        queue[msg.message_id].push({language: language.language, text: result})
         if(checkComplete(msg)) {
           sendResult(msg)
           delete queue[msg.message_id]
@@ -81,7 +86,8 @@ const onTrCommand = function(msg, match) {
       if(args[0] === 'addlang') {
         if(args.length >= 2) {
           const language = args[1]
-          groups[chatId].push(language)
+          const mode = args[2] || 'google'
+          groups[chatId].push({language: language, mode: mode})
           save()
           reply(msg, 'Added language: ' + language)
         } else {
@@ -90,7 +96,7 @@ const onTrCommand = function(msg, match) {
       } else if(args[0] === 'dellang') {
         if(args.length >= 2) {
           const language = args[1]
-          const index = groups[chatId].indexOf(language)
+          const index = groups[chatId].indexOf(groups[chatId].find(e => e.language === language))
           if(index >= 0) groups[chatId].splice(index, 1)
           save()
           reply(msg, 'Removed language: ' + language)
@@ -100,7 +106,7 @@ const onTrCommand = function(msg, match) {
       } else if(args[0] === 'listlang') {
         let result = 'Languages: '
         groups[chatId].forEach(language => {
-          result += '\n- ' + language
+          result += '\n- ' + language.language + ' - ' + language.mode
         })
         reply(msg, result)
       }
@@ -111,7 +117,7 @@ const onTrCommand = function(msg, match) {
 }
 
 const checkComplete = function(msg) {
-  return groups[msg.chat.id] && groups[msg.chat.id].every(language => queue[msg.message_id].find(e => e.language === language) !== undefined)
+  return groups[msg.chat.id] && groups[msg.chat.id].every(language => queue[msg.message_id].find(e => e.language === language.language) !== undefined)
 }
 
 const sendResult = function(msg) {
@@ -119,14 +125,16 @@ const sendResult = function(msg) {
   const preprocessed = queue[msg.message_id].filter(e => e.text !== msg.text)
       .sort((a, b) => a.language < b.language ? -1 : a.language > b.language ? 1 : 0)
   for(i in preprocessed) {
+    if(preprocessed[i].text === undefined) continue
     if(i != 0) message += '\n'
     try {
-      message += emojiFlags.countryCode(preprocessed[i].language.split('_')[1]).emoji + ' ' + preprocessed[i].text
+      message += emojiFlags.countryCode(preprocessed[i].language.split('_')[1]).emoji
+      message += ' ' + preprocessed[i].text
     } catch(e) {
       message += preprocessed[i].language + ' ' + filtered[i].text
     }
   }
-  reply(msg, message)
+  if(message !== '') reply(msg, message)
 }
 
 const reply = function(msg, text) {
