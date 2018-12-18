@@ -143,7 +143,7 @@ const sendResult = function(msg) {
       message += emojiFlags.countryCode(preprocessed[i].language.split('_')[1]).emoji
       message += ' ' + preprocessed[i].text
     } catch(e) {
-      message += preprocessed[i].language + ' ' + filtered[i].text
+      message += preprocessed[i].language + ' ' + preprocessed[i].text
     }
   }
   if(message !== '') bot.sendMessage(msg.chat.id, name + ': ' + message)
