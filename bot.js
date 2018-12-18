@@ -64,6 +64,7 @@ bot.on('message', (msg) => {
     groups[msg.chat.id].forEach(language => {
       queue[msg.message_id] = []
       modes[language.mode](msg.text, language.language, result => {
+        if(!queue[msg.message_id]) return
         queue[msg.message_id].push({language: language.language, text: result})
         if(checkComplete(msg)) {
           sendResult(msg)
@@ -143,7 +144,7 @@ const sendResult = function(msg) {
       message += emojiFlags.countryCode(preprocessed[i].language.split('_')[1]).emoji
       message += ' ' + preprocessed[i].text
     } catch(e) {
-      message += preprocessed[i].language + ' ' + preprocessed[i].text
+      message += ' ' + preprocessed[i].language + ' ' + preprocessed[i].text
     }
   }
   if(message !== '') bot.sendMessage(msg.chat.id, name + ': ' + message)
