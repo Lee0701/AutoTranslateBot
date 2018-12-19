@@ -31,6 +31,7 @@ const trCommand = new RegExp('^/(atr)(@' + botId + ')?(?: ([\\s\\S]*))?')
 let groups = {}
 
 let queue = {}
+let history = {}
 
 const load = function() {
   client.query('select * from data;', (err, res) => {
@@ -60,20 +61,47 @@ bot.on('message', (msg) => {
   if(!msg.text) return
   if(msg.text.startsWith('^')) return
   if(msg.text.startsWith('/')) return
+  translateMessage(msg, result => {
+    bot.sendMessage(msg.chat.id, result).then(sent => {
+      history[msg.chat.id][msg.message_id] = sent.message_id
+      setTimeout(() => {
+        delete history[msg.chat.id][msg.message_id]
+      }, 5*60*1000)
+    })
+    delete queue[msg.chat.id][msg.message_id]
+  })
+})
+
+bot.on('edited_message', (msg) => {
+  if(!msg.text) return
+  if(msg.text.startsWith('^')) {
+
+    return
+  }
+  if(history[msg.chat.id] && history[msg.chat.id][msg.message_id]) {
+    translateMessage(msg, result => {
+      bot.editMessageText(result, {chat_id: msg.chat.id, message_id: history[msg.chat.id][msg.message_id]})
+    })
+  }
+})
+
+const translateMessage = function(msg, callback) {
   if(groups[msg.chat.id]) {
     groups[msg.chat.id].forEach(language => {
-      queue[msg.message_id] = []
+      if(!queue[msg.chat.id]) queue[msg.chat.id] = {}
+      if(!history[msg.chat.id]) history[msg.chat.id] = {}
+      queue[msg.chat.id][msg.message_id] = []
       modes[language.mode](msg.text, language.language, result => {
-        if(!queue[msg.message_id]) return
-        queue[msg.message_id].push({language: language.language, text: result})
+        if(!queue[msg.chat.id][msg.message_id]) return
+        queue[msg.chat.id][msg.message_id].push({language: language.language, text: result})
         if(checkComplete(msg)) {
-          sendResult(msg)
-          delete queue[msg.message_id]
+          const result = getResult(msg)
+          callback(result)
         }
       })
     })
   }
-})
+}
 
 const onTrCommand = function(msg, match) {
   bot.getChatMember(msg.chat.id, msg.from.id).then((member) => {
@@ -127,15 +155,15 @@ const onTrCommand = function(msg, match) {
 }
 
 const checkComplete = function(msg) {
-  return groups[msg.chat.id] && groups[msg.chat.id].every(language => queue[msg.message_id].find(e => e.language === language.language) !== undefined)
+  return groups[msg.chat.id] && groups[msg.chat.id].every(language => queue[msg.chat.id][msg.message_id].find(e => e.language === language.language) !== undefined)
 }
 
-const sendResult = function(msg) {
+const getResult = function(msg) {
   let name = msg.from.first_name
   if(msg.from.last_name) name += ' ' + msg.from.last_name
   //if(msg.from.username) name += ' @' + msg.from.username
   let message = ''
-  const preprocessed = queue[msg.message_id].filter(e => e.text !== msg.text)
+  const preprocessed = queue[msg.chat.id][msg.message_id].filter(e => e.text !== msg.text)
       .sort((a, b) => a.language < b.language ? -1 : a.language > b.language ? 1 : 0)
   for(i in preprocessed) {
     if(preprocessed[i].text === undefined) continue
@@ -147,7 +175,8 @@ const sendResult = function(msg) {
       message += ' ' + preprocessed[i].language + ' ' + preprocessed[i].text
     }
   }
-  if(message !== '') bot.sendMessage(msg.chat.id, name + ': ' + message)
+  if(message !== '') return name + ': ' + message
+  else return undefined
 }
 
 const reply = function(msg, text) {
