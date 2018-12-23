@@ -61,6 +61,8 @@ bot.on('message', (msg) => {
   if(!msg.text) return
   if(msg.text.startsWith('^')) return
   if(msg.text.startsWith('/')) return
+  if(msg.text.startsWith('@') && !msg.text.includes(' ')) return
+
   translateMessage(msg, result => {
     bot.sendMessage(msg.chat.id, result).then(sent => {
       history[msg.chat.id][msg.message_id] = sent.message_id
