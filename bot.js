@@ -60,8 +60,7 @@ const save = function() {
 bot.on('message', (msg) => {
   if(!msg.text) return
   if(msg.text.startsWith('^')) return
-  if(msg.text.startsWith('/')) return
-  if(msg.text.startsWith('@') && !msg.text.includes(' ')) return
+  if(hasLink(msg) && !msg.text.includes(' ')) return
 
   translateMessage(msg, result => {
     bot.sendMessage(msg.chat.id, result).then(sent => {
@@ -188,6 +187,10 @@ const reply = function(msg, text) {
 const checkAdmin = function(member) {
   if(member.status === 'creator' || member.status === 'administrator') return true
   else return false
+}
+
+const hasLink = function(msg) {
+  return msg.entities && msg.entities.length > 0
 }
 
 bot.onText(trCommand, onTrCommand)
