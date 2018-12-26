@@ -59,6 +59,7 @@ const save = function() {
 
 bot.on('message', (msg) => {
   if(!msg.text) return
+  if(msg.text.startsWith('/')) return
   if(msg.text.startsWith('^')) return
   if(hasLink(msg) && !msg.text.includes(' ')) return
 
