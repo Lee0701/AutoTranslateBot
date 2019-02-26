@@ -14,7 +14,7 @@ const emojiFlags = require('emoji-flags')
 const { Client } = require('pg');
 const client = new Client({
   connectionString: config.dbUrl,
-  ssl: true
+  ssl: config.dbSsl
 })
 client.connect()
 
