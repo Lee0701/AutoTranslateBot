@@ -21,7 +21,7 @@ module.exports = function(text, language, callback) {
 
   request(options, (err, res, body) => {
     if(err) {
-      console.log(err)
+      console.error(err)
       return
     }
     callback(JSON.parse(body).translatedText)

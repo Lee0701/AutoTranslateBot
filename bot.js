@@ -1,22 +1,23 @@
-
+require('dotenv').config()
 const config = require('./config.js')
 
 const http = require('http')
 
 const botToken = config.botToken
-const botId = config.botId
 
-const TelegramBot = require('node-telegram-bot-api')
-const bot = new TelegramBot(botToken, {polling: true})
+const Telegraf = require('telegraf')
+const bot = new Telegraf(config.botToken)
 
 const emojiFlags = require('emoji-flags')
+
+const fs = require('fs')
 
 const { Client } = require('pg');
 const client = new Client({
   connectionString: config.dbUrl,
   ssl: config.dbSsl
 })
-client.connect()
+if(config.useDb) client.connect()
 
 const google = require('./google-translator.js')
 const papago = require('./papago-translator.js')
@@ -26,63 +27,72 @@ const modes = {
   "papago": papago,
 }
 
-const trCommand = new RegExp('^/(atr)(@' + botId + ')?(?: ([\\s\\S]*))?')
-
 let groups = {}
 
 let queue = {}
 let history = {}
 
 const load = function() {
-  client.query('select * from data;', (err, res) => {
-    if(err) {
-      console.log(err)
-      return
-    }
-    res.rows.forEach(row => {
-      if(row.key === 'groups') groups = JSON.parse(row.value)
+  if(config.useDb) {
+    client.query('select * from data;', (err, res) => {
+      if(err) {
+          console.error(err)
+        return
+      }
+      res.rows.forEach(row => {
+        if(row.key === 'groups') groups = JSON.parse(row.value)
+      })
     })
-  })
+  } else {
+    fs.readFile(config.fileName, (err, data) => {
+      if(err) console.error(err)
+      else groups = JSON.parse(data.toString())
+    })
+  }
 }
 
 const save = function() {
   const value = JSON.stringify(groups)
-  client.query('select * from data;', (err, res) => {
-    if(err) {
-      console.log(err)
-      return
-    }
-    if(res.rows.length > 0) client.query("update data set value='" + value + "';")
-    else client.query("insert into data (key, value) values('groups', '" + value + "');")
-  })
+  if(config.useDb) {
+    client.query('select * from data;', (err, res) => {
+      if(err) {
+        console.error(err)
+        return
+      }
+      if(res.rows.length > 0) client.query("update data set value='" + value + "';")
+      else client.query("insert into data (key, value) values('groups', '" + value + "');")
+    })
+  } else {
+    fs.writeFile(config.fileName, value, (err) => console.error(err))
+  }
 }
 
-bot.on('message', (msg) => {
-  if(!msg.text) return
-  if(msg.text.startsWith('/')) return
-  if(msg.text.startsWith('^')) return
-  if(hasLink(msg) && !msg.text.includes(' ')) return
+const onText = function(ctx) {
+  const text = ctx.message.text
+  if(text.startsWith('/')) return
+  if(text.startsWith('^')) return
+  if(hasLink(ctx.message) && !text.includes(' ')) return
 
-  translateMessage(msg, result => {
-    bot.sendMessage(msg.chat.id, result).then(sent => {
-      history[msg.chat.id][msg.message_id] = sent.message_id
+  translateMessage(ctx.message, result => {
+    ctx.telegram.sendMessage(ctx.chat.id, result).then(sent => {
+      history[ctx.chat.id][ctx.message.message_id] = sent.message_id
       setTimeout(() => {
-        delete history[msg.chat.id][msg.message_id]
+        delete history[ctx.chat.id][ctx.message.message_id]
       }, 5*60*1000)
     })
-    delete queue[msg.chat.id][msg.message_id]
+    delete queue[ctx.chat.id][ctx.message.message_id]
   })
-})
+  return true
+}
 
-bot.on('edited_message', (msg) => {
-  if(!msg.text) return
-  if(msg.text.startsWith('^')) {
+bot.on('edited_message', (ctx) => {
+  if(ctx.message.text.startsWith('^')) {
 
-    return
+    return true
   }
-  if(history[msg.chat.id] && history[msg.chat.id][msg.message_id]) {
-    translateMessage(msg, result => {
-      bot.editMessageText(result, {chat_id: msg.chat.id, message_id: history[msg.chat.id][msg.message_id]})
+  if(history[ctx.chat.id] && history[msg.chat.id][msg.message_id]) {
+    translateMessage(ctx.message, result => {
+      ctx.telegram.editMessageText(ctx.chat.id, history[ctx.chat.id][ctx.message.message_id], result)
     })
   }
 })
@@ -105,15 +115,17 @@ const translateMessage = function(msg, callback) {
   }
 }
 
-const onTrCommand = function(msg, match) {
-  bot.getChatMember(msg.chat.id, msg.from.id).then((member) => {
+const onTrCommand = function(ctx) {
+  const msg = ctx.message
+  ctx.telegram.getChatMember(ctx.chat.id, msg.from.id).then((member) => {
     if(!checkAdmin(member)) {
-      reply(msg, 'You are not admin!')
+      ctx.reply('You are not admin!')
       return
     }
-    const args = (match[3] || '').split(' ')
+    const args = (ctx.update.message.text || '').split(/\s+/)
+    args.splice(0, 1)
     if(args.length >= 1) {
-      const chatId = msg.chat.id
+      const chatId = ctx.chat.id
       if(!groups[chatId]) groups[chatId] = []
       if(args[0] === 'addlang') {
         if(args.length >= 2) {
@@ -121,9 +133,9 @@ const onTrCommand = function(msg, match) {
           const mode = args[2] || 'google'
           groups[chatId].push({language: language, mode: mode})
           save()
-          reply(msg, 'Added language: ' + language)
+          ctx.reply('Added language: ' + language)
         } else {
-          reply(msg, 'Usage: /addlang <langcode>')
+          ctx.reply('Usage: /addlang <langcode>')
         }
       } else if(args[0] === 'dellang') {
         if(args.length >= 2) {
@@ -131,29 +143,30 @@ const onTrCommand = function(msg, match) {
           const index = groups[chatId].indexOf(groups[chatId].find(e => e.language === language))
           if(index >= 0) groups[chatId].splice(index, 1)
           save()
-          reply(msg, 'Removed language: ' + language)
+          ctx.reply('Removed language: ' + language)
         } else {
-          reply(msg, 'Usage: /dellang <langcode>')
+          ctx.reply('Usage: /dellang <langcode>')
         }
       } else if(args[0] === 'listlang') {
         let result = 'Languages: '
         groups[chatId].forEach(language => {
           result += '\n- ' + language.language + ' - ' + language.mode
         })
-        reply(msg, result)
+        ctx.reply(result)
       } else if(args[0] === 'reset') {
         if(groups[chatId]) {
           delete groups[chatId]
           save()
-          reply(msg, 'Settings reset.')
+          ctx.reply('Settings reset.')
         } else {
-        reply(msg, 'Error!' + language)
+        ctx.reply('Error!' + language)
         }
       }
     } else {
-      reply(msg, 'Usage: ')
+      ctx.reply('Usage: ')
     }
   })
+  return true
 }
 
 const checkComplete = function(msg) {
@@ -181,10 +194,6 @@ const getResult = function(msg) {
   else return undefined
 }
 
-const reply = function(msg, text) {
-  bot.sendMessage(msg.chat.id, text, {reply_to_message_id: msg.message_id})
-}
-
 const checkAdmin = function(member) {
   if(member.status === 'creator' || member.status === 'administrator') return true
   else return false
@@ -194,16 +203,19 @@ const hasLink = function(msg) {
   return msg.entities && msg.entities.length > 0
 }
 
-bot.onText(trCommand, onTrCommand)
+bot.command('atr', onTrCommand)
+bot.on('text', onText)
 
-bot.on('polling_error', (err) => {
-  console.log(err)
-})
+bot.catch((err) => console.error(err))
 
-http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'})
-  res.write('')
-  res.end()
-}).listen(config.port || 80)
+bot.launch()
+
+if(config.useWeb) {
+  http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'})
+    res.write('')
+    res.end()
+  }).listen(config.port || 80)
+}
 
 load()
