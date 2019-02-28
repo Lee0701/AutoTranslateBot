@@ -20,9 +20,7 @@ const generate = function(a){xr=function(a,b){for(var c=0;c<b.length-2;c+=3){var
 
 updateTKK()
 
-module.exports = function(text, language, callback) {
-  const from = 'auto'
-  const to = language
+module.exports = function(text, from, to, callback) {
   let token = generate(text)
   if(!token) {
     updateTKK()
@@ -47,7 +45,11 @@ module.exports = function(text, language, callback) {
         callback(result)
       } catch(e) {
         console.error(e)
+        callback(undefined)
       }
     })
-  }).on('error', (err) => console.error(err))
+  }).on('error', (err) => {
+    console.error(err)
+    callback(undefined)
+  })
 }

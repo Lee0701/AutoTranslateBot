@@ -19,6 +19,10 @@ const client = new Client({
 })
 if(config.useDb) client.connect()
 
+const franc = require('franc')
+const isoConvert = require('iso-639-3-to-1')
+const CountryLanguage = require('country-language')
+
 const google = require('./google-translator.js')
 const papago = require('./papago-translator.js')
 
@@ -29,8 +33,9 @@ const modes = {
 
 let groups = {}
 
-let queue = {}
 let history = {}
+
+const FROM_TO_SEP = '->'
 
 const load = function() {
   if(config.useDb) {
@@ -75,41 +80,51 @@ const onText = function(ctx) {
 
   translateMessage(ctx.message, result => {
     ctx.telegram.sendMessage(ctx.chat.id, result).then(sent => {
+      if(!history[ctx.chat.id]) history[ctx.chat.id] = {}
       history[ctx.chat.id][ctx.message.message_id] = sent.message_id
       setTimeout(() => {
         delete history[ctx.chat.id][ctx.message.message_id]
       }, 5*60*1000)
     })
-    delete queue[ctx.chat.id][ctx.message.message_id]
   })
   return true
 }
 
 bot.on('edited_message', (ctx) => {
-  if(ctx.message.text.startsWith('^')) {
+  const msg = ctx.editedMessage
+  if(msg.text.startsWith('^')) {
 
     return true
   }
   if(history[ctx.chat.id] && history[msg.chat.id][msg.message_id]) {
-    translateMessage(ctx.message, result => {
-      ctx.telegram.editMessageText(ctx.chat.id, history[ctx.chat.id][ctx.message.message_id], result)
+    translateMessage(msg, result => {
+      ctx.telegram.editMessageText(ctx.chat.id, history[ctx.chat.id][msg.message_id], null, result)
     })
   }
 })
 
 const translateMessage = function(msg, callback) {
   if(groups[msg.chat.id]) {
-    groups[msg.chat.id].forEach(language => {
-      if(!queue[msg.chat.id]) queue[msg.chat.id] = {}
-      if(!history[msg.chat.id]) history[msg.chat.id] = {}
-      queue[msg.chat.id][msg.message_id] = []
-      modes[language.mode](msg.text, language.language, result => {
-        if(!queue[msg.chat.id][msg.message_id]) return
-        queue[msg.chat.id][msg.message_id].push({language: language.language, text: result})
-        if(checkComplete(msg)) {
-          const result = getResult(msg)
-          callback(result)
-        }
+    const fromLang = isoConvert(franc(msg.text))
+    CountryLanguage.getLanguage(fromLang, (err, result) => {
+      const from = err ? 'auto' : fromLang + '_' + result.countries[0].code_2
+      const explicit = groups[msg.chat.id].filter(({language}) => language.includes(FROM_TO_SEP) && language.split(FROM_TO_SEP)[0].startsWith(from.split('_')[0]))
+      const explicitLanguages = explicit.map(({language}) => language.split(FROM_TO_SEP)[1])
+      const rest = groups[msg.chat.id].filter(({language}) => !language.includes(FROM_TO_SEP) && !explicitLanguages.includes(language))
+      const languages = explicit.concat(rest)
+
+      let name = msg.from.first_name
+      if(msg.from.last_name) name += ' ' + msg.from.last_name
+
+      const results = []
+      const checkComplete = () => languages.every(language => results.find(e => e.language.split('_')[0] == language.language.split('_')[0]) !== undefined)
+      languages.forEach(language => {
+        const to = language.language.includes(FROM_TO_SEP) ? language.language.split(FROM_TO_SEP)[1] : language.language
+        //console.log(`${from}->${to}, ${language.mode}`)
+        modes[language.mode](msg.text, from, to, translated => {
+          results.push({language: to, text: translated})
+          if(checkComplete()) callback(getResult(name, msg.text, results))
+        })
       })
     })
   }
@@ -169,16 +184,9 @@ const onTrCommand = function(ctx) {
   return true
 }
 
-const checkComplete = function(msg) {
-  return groups[msg.chat.id] && groups[msg.chat.id].every(language => queue[msg.chat.id][msg.message_id].find(e => e.language === language.language) !== undefined)
-}
-
-const getResult = function(msg) {
-  let name = msg.from.first_name
-  if(msg.from.last_name) name += ' ' + msg.from.last_name
-  //if(msg.from.username) name += ' @' + msg.from.username
+const getResult = function(name, text, result) {
   let message = ''
-  const preprocessed = queue[msg.chat.id][msg.message_id].filter(e => e.text !== msg.text)
+  const preprocessed = result.filter(e => e.text !== text)
       .sort((a, b) => a.language < b.language ? -1 : a.language > b.language ? 1 : 0)
   for(i in preprocessed) {
     if(preprocessed[i].text === undefined) continue

@@ -9,8 +9,11 @@
   "author": "Lee0701",
   "license": "GPL-3.0",
   "dependencies": {
+    "country-language": "^0.1.7",
     "dotenv": "^6.2.0",
     "emoji-flags": "^1.2.0",
+    "franc": "^4.0.0",
+    "iso-639-3-to-1": "^1.0.0",
     "pg": "^7.7.1",
     "request": "^2.88.0",
     "telegraf": "^3.27.1"

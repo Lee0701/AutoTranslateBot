@@ -1,9 +1,9 @@
 
 const request = require('request')
 
-module.exports = function(text, language, callback) {
-  const from = 'auto'
-  const to = language === 'zh_CN' ? 'zh-CN' : language === 'zh_TW' ? 'zh-TW' : language.split('_')[0]
+module.exports = function(text, fromLang, language, callback) {
+  const from = fromLang === 'zh_CN' ? 'zh-CN' : fromLang === 'zh_TW' || fromLang === 'zh_HK' ? 'zh-TW' : fromLang.split('_')[0]
+  const to = language === 'zh_CN' ? 'zh-CN' : language === 'zh_TW' || language === 'zh_HK' ? 'zh-TW' : language.split('_')[0]
 
   const base = 'rlWxnJA0Vwc0paIyLCJkaWN0RGlzcGxheSI6NSwic291cmNlIjoi'
   const str = '' + from + '","target":"' + to + '","text":"' + text + '"}'
@@ -22,6 +22,7 @@ module.exports = function(text, language, callback) {
   request(options, (err, res, body) => {
     if(err) {
       console.error(err)
+      callback(undefined)
       return
     }
     callback(JSON.parse(body).translatedText)
