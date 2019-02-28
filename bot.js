@@ -25,10 +25,12 @@ const CountryLanguage = require('country-language')
 
 const google = require('./google-translator.js')
 const papago = require('./papago-translator.js')
+const baidu = require('./baidu-translator.js')
 
 const modes = {
   "google": google,
   "papago": papago,
+  "baidu": baidu,
 }
 
 let groups = {}
@@ -117,11 +119,13 @@ const translateMessage = function(msg, callback) {
       if(msg.from.last_name) name += ' ' + msg.from.last_name
 
       const results = []
-      const checkComplete = () => languages.every(language => results.find(e => e.language.split('_')[0] == language.language.split('_')[0]) !== undefined)
-      languages.forEach(language => {
-        const to = language.language.includes(FROM_TO_SEP) ? language.language.split(FROM_TO_SEP)[1] : language.language
-        //console.log(`${from}->${to}, ${language.mode}`)
-        modes[language.mode](msg.text, from, to, translated => {
+      const getDest = (l) => l.includes(FROM_TO_SEP) ? l.split(FROM_TO_SEP)[1] : l
+      const check = (l) => results.filter(result => result.language.split('_')[0] == l).length == languages.filter(({language}) => getDest(language).split('_')[0] == l).length
+      const checkComplete = () => languages.every(({language}) => check(getDest(language).split('_')[0]))
+      languages.forEach(({language, mode}) => {
+        const to = getDest(language)
+        //console.log(`${from}->${to}, ${mode}`)
+        modes[mode](msg.text, from, to, (translated) => {
           results.push({language: to, text: translated})
           if(checkComplete()) callback(getResult(name, msg.text, results))
         })

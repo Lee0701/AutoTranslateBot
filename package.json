@@ -9,6 +9,7 @@
   "author": "Lee0701",
   "license": "GPL-3.0",
   "dependencies": {
+    "baidu-translate-api": "^0.3.1",
     "country-language": "^0.1.7",
     "dotenv": "^6.2.0",
     "emoji-flags": "^1.2.0",
